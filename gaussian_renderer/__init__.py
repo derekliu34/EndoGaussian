@@ -78,6 +78,12 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
         means3D_deform, scales_deform, rotations_deform, opacity_deform = pc._deformation(means3D[deformation_point], scales[deformation_point], 
                                                                          rotations[deformation_point], opacity[deformation_point],
                                                                          time[deformation_point])
+        d_xyz=means3D_deform - means3D[deformation_point]
+
+        d_xyz_clamped = torch.clamp(d_xyz, min=-2.0, max =2.0)
+
+        means3D_deform = means3D[deformation_point] + d_xyz_clamped
+
     # print(time.max())
     with torch.no_grad():
         pc._deformation_accum[deformation_point] += torch.abs(means3D_deform - means3D[deformation_point])

@@ -53,8 +53,10 @@ class EndoNeRF_Dataset(object):
         mode='binocular'
     ):
         self.img_wh = (
+            int(576 / downsample),
             int(640 / downsample),
-            int(512 / downsample),
+            #int(640 / downsample),
+            #int(512 / downsample),
         )
         self.root_dir = datadir
         self.downsample = downsample 
@@ -62,6 +64,8 @@ class EndoNeRF_Dataset(object):
         self.transform = T.ToTensor()
         self.white_bg = False
         self.mode = mode
+
+        self.gray_out_dir = os.path.join(self.root_dir, "gray_out")
 
         self.load_meta()
         print(f"meta data loaded, total image:{len(self.image_paths)}")
@@ -139,9 +143,30 @@ class EndoNeRF_Dataset(object):
                 depth = np.clip(depth, close_depth, inf_depth)
             elif self.mode == 'monocular':
                 depth = np.array(Image.open(self.depth_paths[idx]))[...,0] / 255.0
-                depth[depth!=0] = (1 / depth[depth!=0])*0.4
-                depth[depth==0] = depth.max()
+
+                non_zero_mask = depth != 0
+
+                depth[non_zero_mask] = (1.0 - depth[non_zero_mask])*100
+                depth[~non_zero_mask] = depth.max()
+                
+                #depth[depth!=0] = (1 / depth[depth!=0])*0.4
+                #depth[depth==0] = depth.max()
+                #depth = depth[...,None]
+
+                # non_zero_mask = depth != 0
+                # depth = np.clip(depth, 0.05, 0.95)
+
+                # depth[non_zero_mask] = (1.0 / depth[non_zero_mask])
+                # depth[~non_zero_mask] = depth.max()
+
+                filename = f"inv_depth{idx}.png"
+                depth_norm = (depth - depth.min()) / (depth.max() - depth.min())
+                depth_uint8 = (depth_norm * 255.0).astype(np.uint8)
+                depth_img = Image.fromarray(depth_uint8)
+                depth_img.save(os.path.join(self.gray_out_dir, filename))
+
                 depth = depth[...,None]
+
             else:
                 raise ValueError(f"{self.mode} has not been implemented.")
             depth = torch.from_numpy(depth)
@@ -211,8 +236,26 @@ class EndoNeRF_Dataset(object):
             depth = np.clip(depth, close_depth, inf_depth)
         else:
             depth = np.array(Image.open(self.depth_paths[idx]))[..., 0] / 255.0
-            depth[depth!=0] = (1 / depth[depth!=0])*0.4
-            depth[depth==0] = depth.max()
+
+            non_zero_mask = depth != 0
+
+            depth[non_zero_mask] = (1.0 - depth[non_zero_mask])*100
+            depth[~non_zero_mask] = depth.max()
+
+            # non_zero_mask = depth != 0
+            # depth = np.clip(depth, 0.05, 0.95)
+
+            # depth[non_zero_mask] = (1.0 / depth[non_zero_mask])
+            # depth[~non_zero_mask] = depth.max()
+
+            filename = f"inv_depth{idx}.png"
+            depth_norm = (depth - depth.min()) / (depth.max() - depth.min())
+            depth_uint8 = (depth_norm * 255.0).astype(np.uint8)
+            depth_img = Image.fromarray(depth_uint8)
+            depth_img.save(os.path.join(self.gray_out_dir, filename))
+
+
+
 
         mask = 1 - np.array(Image.open(self.masks_paths[idx]))/255.0
         color = np.array(Image.open(self.image_paths[idx]))/255.0
